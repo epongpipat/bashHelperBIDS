@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# ------------------------------------------------------------------------------
+# opts
+# ------------------------------------------------------------------------------
+entities_order=(sub ses sample task tracksys \
+acq ce trc stain rec \
+dir run mod echo flip \
+inv mt part proc hemi space \
+split recording chunk seg res \
+den label desc suffix extension)
+
+entities_dashed=`echo ${entities_order[@]} | sed 's/ / --/g'`
+entities_dashed="--${entities_dashed}"
+entities_dashed=(`echo ${entities_dashed}`)
+
+# ------------------------------------------------------------------------------
+# usage
+# ------------------------------------------------------------------------------
+usage_str=""
+entities_req=(sub suffix extension)
+
+usage_str="${usage_str}\nUsage:\n\t$0 --sub <sub> --suffix <suffix> --extension <extension> [options]"
+usage_str="${usage_str}\n\nRequired arguments:"
+for key in ${entities_req[@]}; do
+    usage_str="${usage_str}\n\t--${key} <${key}>"
+done
+usage_str="${usage_str}\n\nOptional arguments:"
+for key in ${entities_order[@]}; do
+    if [[ ${entities_req[@]} =~ ${key} ]]; then
+        # usage_str="${usage_str}\n-${key} <${key}> (required)"
+        continue
+    else
+        usage_str="${usage_str}\n\t--${key} <${key}>"
+    fi
+done
+usage_str="${usage_str}\n\nFor more details, please visit https://bids-specification.readthedocs.io/en/stable/appendices/entities.html"
+usage_str="${usage_str}\n"
+
+
+# ------------------------------------------------------------------------------
+# parse arguments
+# ------------------------------------------------------------------------------
+if [ $# -eq 0 ]; then
+    echo -e ${usage_str}
+    echo -e "[ERROR]\tno arguments supplied"
+    exit 1
+fi
+
+help_args=("-h" "--help")
+declare -A entities
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -h|--help)
+            echo -e ${usage_str}
+            exit 0
+            ;;
+        *)
+            for key in ${entities_order[@]}; do
+                if [[ ${help_args[@]} =~ $1 ]]; then
+                    continue
+                fi
+                if [[ ! ${entities_dashed[@]} =~ "$1" ]]; then
+                    echo -e ${usage_str}
+                    echo -e "[ERROR]\t$1 is not a valid argument"
+                    exit 1
+                fi
+                if [[ $1 == "--${key}" ]]; then
+                    entities[${key}]=$2
+                    shift 2
+                fi
+            done
+            ;;
+    esac
+done
+
+for key in ${entities_req[@]}; do
+    if [[ -z ${entities[${key}]} ]]; then
+        echo -e ${usage_str}
+        echo -e "[ERROR]\t--${key} is a required argument"
+        exit 1
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# main
+# ------------------------------------------------------------------------------
+
+path="sub-${entities[sub]}"
+for key in ${entities_order[@]}; do
+    if [[ ${entities_req[@]} =~ ${key} ]]; then
+        continue
+    fi
+    if [[ -z ${entities[${key}]} ]]; then
+        continue
+    fi
+    path="${path}_${key}-${entities[${key}]}"
+done
+path="${path}_${entities[suffix]}${entities[extension]}"
+echo ${path}

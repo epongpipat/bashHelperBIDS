@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# ------------------------------------------------------------------------------
+# usage
+# ------------------------------------------------------------------------------
+usage() {
+
+    cat <<USAGE
+    
+    Usage: $0 [options]
+
+    Options:
+        -k, --keys <keys>
+            keys to be used for the entity (required)
+            separate multiple keys with a space (must be the same length as values)
+
+        -v, --values <values>
+            values to be used for the entity (required)
+            separate multiple values with a space (must be the same length as keys
+
+        -h, --help
+            show this help message and exit
+        
+USAGE
+    # exit 1
+}
+
+# check
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+# parse
+declare -a keys
+declare -a values
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -h|--help)
+                usage
+                exit 0;;
+        -k|--keys)
+            keys[0]=$2
+            if [[ ${#keys[@]} -eq 0 ]]; then
+                usage
+                echo -e "[ERROR]\tno keys provided"
+                exit 1
+            fi
+            shift
+            while [[ ! "$2" =~ "-" ]] && [[ ! -z "$2" ]]; do
+                keys+=($2)
+                shift
+            done
+            # echo ${keys[@]}
+            shift
+            ;;
+        -v|--values)
+            values[0]=$2
+            if [[ ${#values[@]} -eq 0 ]]; then
+                usage
+                echo -e "[ERROR]\tno values provided"
+                exit 1
+            fi
+            shift
+            while [[ ! "$2" =~ "-" ]] && [[ ! -z "$2" ]]; do
+                values+=($2)
+                shift
+            done
+            # echo ${values[@]}
+            shift
+            ;;
+        *)
+            usage
+            echo -e "[ERROR]\tunknown option: $1"
+            exit 1;;
+    esac
+done
+
+# checks
+if [[ ${#keys[@]} -ne ${#values[@]} ]]; then
+    usage
+    echo -e "[ERROR]\tkeys and values must be the same length"
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# main
+# ------------------------------------------------------------------------------
+declare -A entities
+for i in "${!keys[@]}"; do
+    entities[${keys[$i]}]=${values[$i]}
+done
+
+entities_order=(ses sample task tracksys acq \
+ce trc stain rec dir \
+run mod echo flip inv \
+mt part proc hemi space \
+split recording chunk seg res \
+den label desc)
+
+path="sub-${entities[sub]}"
+for i in ${!entities_order[@]}; do
+    if [[ -z ${entities[${entities_order[$i]}]} ]]; then
+        continue
+    fi
+    path="${path}_${entities_order[$i]}-${entities[${entities_order[$i]}]}"
+done
+path="${path}_${entities[suffix]}${entities[extension]}"
+echo -e "${path}"

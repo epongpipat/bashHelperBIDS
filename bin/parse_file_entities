@@ -1,0 +1,20 @@
+#!/bin/bash
+
+path=$1
+
+declare -A entities
+filename=`basename $path`
+filename_parts=(`echo ${filename} | sed 's/_/ /g'`)
+for i in ${!filename_parts[@]}; do
+    if [[ ${filename_parts[${i}]} =~ '.' ]]; then
+        continue
+    fi
+    key=`echo ${filename_parts[${i}]} | awk -F'-' '{print $1}'`
+    value=`echo ${filename_parts[${i}]} | sed "s/${key}-//g"`
+    entities[${key}]=${value}
+    echo -e "${key}\t\t${value}"
+done
+suffix=`echo ${filename_parts[${#filename_parts[@]}-1]} | awk -F'.' '{print $1}'`
+echo -e "suffix\t\t${suffix}"
+extension=`echo ${filename_parts[${#filename_parts[@]}-1]} | sed "s/${suffix}//g"`
+echo -e "extension\t${extension}"
