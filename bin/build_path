@@ -3,12 +3,31 @@
 # ------------------------------------------------------------------------------
 # opts
 # ------------------------------------------------------------------------------
-entities_order=(sub ses sample task tracksys \
-acq ce trc stain rec \
-dir run mod echo flip \
-inv mt part proc hemi space \
-split recording chunk seg res \
-den label desc suffix extension)
+# entities_order=(sub ses sample task tracksys \
+# acq ce trc stain rec \
+# dir run mod echo flip \
+# inv mt part proc hemi space \
+# split recording chunk seg res \
+# den label desc suffix extension)
+code_dir=`dirname $0`
+code_dir=`dirname ${code_dir}`
+entities_orig=(`cat ${code_dir}/bidsschema/objects_entities.yaml | grep -v '\ ' | grep ':' | sed 's/://g'`)
+entities_order_name=(`cat ${code_dir}/bidsschema/rules_entities.yaml | grep -v "#" | grep -v "\-\-" | awk -F '- ' '{print $2}'`)
+entities_name=(`cat ${code_dir}/bidsschema/objects_entities.yaml | grep "name:" | grep -v display_name | awk -F': ' '{print $2}'`)
+datatypes=(`cat bidsschema/objects_datatypes.yaml | grep 'value: ' | awk -F ': ' '{print $2}'`)
+suffixes=(`cat bidsschema/objects_suffixes.yaml | grep 'value: ' | awk -F ': ' '{print $2}'`)
+
+declare -a entities_order
+entities_order+=("datatype")
+for key in ${entities_order_name[@]}; do
+    for i in ${!entities_orig[@]}; do
+        if [[ ${entities_orig[$i]} == ${key} ]]; then
+            entities_order+=(${entities_name[$i]})
+        fi
+    done
+done
+entities_order+=("suffix")
+entities_order+=("extension")
 
 entities_dashed=`echo ${entities_order[@]} | sed 's/ / --/g'`
 entities_dashed="--${entities_dashed}"
@@ -76,12 +95,12 @@ while [[ $# -gt 0 ]]; do
                 done
                 if [[ $match_found -eq 0 ]]; then
                     echo -e ${usage_str}
-                    echo -e "[ERROR]\tnot a valid option ($1)"
+                    >&2 echo -e "[ERROR]\tnot a valid option ($1)"
                     exit 1
                 fi
                 if [[ -z $2 ]]; then
                     echo -e ${usage_str}
-                    echo -e "[ERROR]\trequires an argument ($1)"
+                    >&2 echo -e "[ERROR]\trequires an argument ($1)"
                     exit 1
                 fi
                 if [[ $1 == "--${key}" ]]; then
@@ -105,7 +124,7 @@ for key in ${entities_req[@]}; do
 done
 if [[ ${#missing_args[@]} -gt 0 ]]; then
     echo -e ${usage_str}
-    echo -e "[ERROR]\tmissing required arguments: ${missing_args[@]}"
+    >&2 echo -e "[ERROR]\tmissing required arguments: ${missing_args[@]}"
     exit 1
 fi
 
@@ -123,20 +142,37 @@ done
 if [[ ${#invalid_args[@]} -gt 0 ]]; then
     echo -e ${usage_str}
     for key in ${!invalid_args[@]}; do
-        echo -e "[ERROR]\tvalue (${invalid_args[${key}]}) is not allowed for key (--${key}) (allowed values: ${allowed_values[${key}]})"
+        >&2 echo -e "[ERROR]\tvalue (${invalid_args[${key}]}) is not allowed for key (--${key}) (allowed values: ${allowed_values[${key}]})"
     done
     exit 1
+fi
+
+# datatype
+if [[ ! -z ${entities[datatype]} ]] && [[ ! " ${datatypes[@]} " =~ " ${entities[datatype]} " ]]; then
+    >&2 echo -e "[WARNING]\tvalue (${entities[datatype]}) is not recognized for key (--datatype) (recognized values: ${datatypes[@]})"
+fi
+
+# suffix
+if [[ ! " ${suffixes[@]} " =~ " ${entities[suffix]} " ]]; then
+    >&2 echo -e "[WARNING]\tvalue (${entities[suffix]}) is not recognized for key (--suffix) (recognized values: ${suffixes[@]})"
 fi
 
 # ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 path="sub-${entities[sub]}"
+if [[ ! -z ${entities[ses]} ]]; then
+    path="${path}_ses-${entities[ses]}"
+fi
+
+if [[ -z ${entities[ses]} ]] && [[ ! -z ${entities[datatype]} ]]; then
+    path="sub-${entities[sub]}/${entities[datatype]}/${path}"
+elif [[ ! -z ${entities[ses]} ]] && [[ ! -z ${entities[datatype]} ]]; then
+    path="sub-${entities[sub]}/ses-${entities[ses]}/${entities[datatype]}/${path}"
+fi
+
 for key in ${entities_order[@]}; do
-    if [[ ${entities_req[@]} =~ ${key} ]]; then
-        continue
-    fi
-    if [[ -z ${entities[${key}]} ]]; then
+    if [[ -z ${entities[${key}]} ]] || [[ ${entities_req[@]} =~ ${key} ]] || [[ ${key} == 'ses' ]] || [[ ${key} == "datatype" ]]; then
         continue
     fi
     path="${path}_${key}-${entities[${key}]}"
