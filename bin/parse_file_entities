@@ -1,7 +1,53 @@
 #!/bin/bash
 
-path=$1
+# ------------------------------------------------------------------------------
+# usage
+# ------------------------------------------------------------------------------
+usage() {
 
+    cat <<USAGE
+    
+    Usage: $0 -i <path> [options]
+
+    Description:
+
+        Parse a path into BIDS entities as well as suffix and extension.
+
+    Options:
+
+        -h, --help
+            show this help message and exit
+        
+USAGE
+}
+
+# ------------------------------------------------------------------------------
+# parse
+# ------------------------------------------------------------------------------
+# check
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+path=$1
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0;;
+        -*|--*)
+            usage
+            echo -e "[ERROR]\tunsupported option ($1)"
+            exit 1;;
+        *)
+            break;;
+    esac
+done
+
+# ------------------------------------------------------------------------------
+# main
+# ------------------------------------------------------------------------------
 declare -A entities
 filename=`basename $path`
 filename_parts=(`echo ${filename} | sed 's/_/ /g'`)
