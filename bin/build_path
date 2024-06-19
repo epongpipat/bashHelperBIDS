@@ -14,6 +14,11 @@ entities_dashed=`echo ${entities_order[@]} | sed 's/ / --/g'`
 entities_dashed="--${entities_dashed}"
 entities_dashed=(`echo ${entities_dashed}`)
 
+declare -A allowed_values
+allowed_values[mt]="on off"
+allowed_values[part]="mag phase real imag"
+allowed_values[hemi]="L R"
+
 # ------------------------------------------------------------------------------
 # usage
 # ------------------------------------------------------------------------------
@@ -21,6 +26,8 @@ usage_str=""
 entities_req=(sub suffix extension)
 
 usage_str="${usage_str}\nUsage:\n\t$0 --sub <sub> --suffix <suffix> --extension <extension> [options]"
+usage_str="${usage_str}\n\nDescription:"
+usage_str="${usage_str}\n\tGenerates a BIDS-compatible filename based on the entities provided."
 usage_str="${usage_str}\n\nRequired arguments:"
 for key in ${entities_req[@]}; do
     usage_str="${usage_str}\n\t--${key} <${key}>"
@@ -43,7 +50,6 @@ usage_str="${usage_str}\n"
 # ------------------------------------------------------------------------------
 if [ $# -eq 0 ]; then
     echo -e ${usage_str}
-    echo -e "[ERROR]\tno arguments supplied"
     exit 1
 fi
 
@@ -61,9 +67,21 @@ while [[ $# -gt 0 ]]; do
                 if [[ ${help_args[@]} =~ $1 ]]; then
                     continue
                 fi
-                if [[ ! ${entities_dashed[@]} =~ "$1" ]]; then
+                match_found=0
+                for entity in ${entities_dashed[@]}; do
+                    if [[ $1 == $entity ]]; then
+                        match_found=1
+                        break
+                    fi
+                done
+                if [[ $match_found -eq 0 ]]; then
                     echo -e ${usage_str}
-                    echo -e "[ERROR]\t$1 is not a valid argument"
+                    echo -e "[ERROR]\tnot a valid option ($1)"
+                    exit 1
+                fi
+                if [[ -z $2 ]]; then
+                    echo -e ${usage_str}
+                    echo -e "[ERROR]\trequires an argument ($1)"
                     exit 1
                 fi
                 if [[ $1 == "--${key}" ]]; then
@@ -75,18 +93,44 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ------------------------------------------------------------------------------
+# checks
+# ------------------------------------------------------------------------------
+# required arguments
+declare -a missing_args
 for key in ${entities_req[@]}; do
     if [[ -z ${entities[${key}]} ]]; then
-        echo -e ${usage_str}
-        echo -e "[ERROR]\t--${key} is a required argument"
-        exit 1
+        missing_args+=("--${key}")
     fi
 done
+if [[ ${#missing_args[@]} -gt 0 ]]; then
+    echo -e ${usage_str}
+    echo -e "[ERROR]\tmissing required arguments: ${missing_args[@]}"
+    exit 1
+fi
+
+# allowed values
+declare -A invalid_args
+for key in ${!entities[@]}; do
+    if [[ -z ${allowed_values[${key}]} ]]; then
+        continue
+    elif [[ " ${allowed_values[${key}]} " =~ " ${entities[${key}]} " ]]; then
+        continue
+    else
+        invalid_args[${key}]=${entities[${key}]}
+    fi
+done
+if [[ ${#invalid_args[@]} -gt 0 ]]; then
+    echo -e ${usage_str}
+    for key in ${!invalid_args[@]}; do
+        echo -e "[ERROR]\tvalue (${invalid_args[${key}]}) is not allowed for key (--${key}) (allowed values: ${allowed_values[${key}]})"
+    done
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
-
 path="sub-${entities[sub]}"
 for key in ${entities_order[@]}; do
     if [[ ${entities_req[@]} =~ ${key} ]]; then
