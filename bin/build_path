@@ -1,23 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# ------------------------------------------------------------------------------
+# paths
+# ------------------------------------------------------------------------------
+code_dir=`dirname $0`
+code_dir=`dirname ${code_dir}`
+# echo ${code_dir}
+declare -A in_paths
+in_paths[entities]="${code_dir}/bidsschema/objects_entities.yaml"
+in_paths[datatypes]="${code_dir}/bidsschema/objects_datatypes.yaml"
+in_paths[suffixes]="${code_dir}/bidsschema/objects_suffixes.yaml"
+in_paths[rules]="${code_dir}/bidsschema/rules_entities.yaml"
 
 # ------------------------------------------------------------------------------
 # opts
 # ------------------------------------------------------------------------------
-# entities_order=(sub ses sample task tracksys \
-# acq ce trc stain rec \
-# dir run mod echo flip \
-# inv mt part proc hemi space \
-# split recording chunk seg res \
-# den label desc suffix extension)
-code_dir=`dirname $0`
-code_dir=`dirname ${code_dir}`
-entities_orig=(`cat ${code_dir}/bidsschema/objects_entities.yaml | grep -v '\ ' | grep ':' | sed 's/://g'`)
-entities_order_name=(`cat ${code_dir}/bidsschema/rules_entities.yaml | grep -v "#" | grep -v "\-\-" | awk -F '- ' '{print $2}'`)
-entities_name=(`cat ${code_dir}/bidsschema/objects_entities.yaml | grep "name:" | grep -v display_name | awk -F': ' '{print $2}'`)
-datatypes=(`cat bidsschema/objects_datatypes.yaml | grep 'value: ' | awk -F ': ' '{print $2}'`)
-suffixes=(`cat bidsschema/objects_suffixes.yaml | grep 'value: ' | awk -F ': ' '{print $2}'`)
+entities_orig=(`cat ${in_paths[entities]} | grep -v '\ ' | grep ':' | sed 's/://g'`)
+entities_order_name=(`cat ${in_paths[rules]} | grep -v "#" | grep -v "\-\-" | awk -F '- ' '{print $2}'`)
+entities_name=(`cat ${in_paths[entities]} | grep "name:" | grep -v display_name | awk -F': ' '{print $2}'`)
+datatypes=(`cat ${in_paths[datatypes]} | grep 'value: ' | awk -F ': ' '{print $2}'`)
+suffixes=(`cat ${in_paths[suffixes]} | grep 'value: ' | awk -F ': ' '{print $2}'`)
 
 declare -a entities_order
+entities_order+=("bids_dir")
+entities_order+=("output_dir")
+entities_order+=("analysis_level")
 entities_order+=("datatype")
 for key in ${entities_order_name[@]}; do
     for i in ${!entities_orig[@]}; do
@@ -37,6 +44,7 @@ declare -A allowed_values
 allowed_values[mt]="on off"
 allowed_values[part]="mag phase real imag"
 allowed_values[hemi]="L R"
+allowed_values[analysis_level]="participant group"
 
 # ------------------------------------------------------------------------------
 # usage
@@ -154,7 +162,13 @@ fi
 
 # suffix
 if [[ ! " ${suffixes[@]} " =~ " ${entities[suffix]} " ]]; then
-    >&2 echo -e "[WARNING]\tvalue (${entities[suffix]}) is not recognized for key (--suffix) (recognized values: ${suffixes[@]})"
+    >&2 echo -e "[WARNING]\tvalue (${entities[suffix]}) is not recognized for key (--suffix)"
+fi
+
+# bids_dir and output_dir
+if [[ ! -z ${entities[bids_dir]} ]] && [[ ! -z {entities[output_dir]} ]]; then
+    >&2 echo -e "[ERROR]\tbids_dir and output_dir cannot be used together"
+    exit 1
 fi
 
 # ------------------------------------------------------------------------------
@@ -171,8 +185,15 @@ elif [[ ! -z ${entities[ses]} ]] && [[ ! -z ${entities[datatype]} ]]; then
     path="sub-${entities[sub]}/ses-${entities[ses]}/${entities[datatype]}/${path}"
 fi
 
+if [[ ! -z ${entities[bids_dir]} ]]; then
+    path="${entities[bids_dir]}/${path}"
+elif [[ ! -z ${entities[output_dir]} ]]; then
+    path="${entities[output_dir]}/${path}"
+fi
+
+entities_skip=(bids_dir output_dir analysis_level ses datatype)
 for key in ${entities_order[@]}; do
-    if [[ -z ${entities[${key}]} ]] || [[ ${entities_req[@]} =~ ${key} ]] || [[ ${key} == 'ses' ]] || [[ ${key} == "datatype" ]]; then
+    if [[ -z ${entities[${key}]} ]] || [[ ${entities_req[@]} =~ ${key} ]] || [[ ${entities_skip[@]} =~ ${key} ]]; then
         continue
     fi
     path="${path}_${key}-${entities[${key}]}"
